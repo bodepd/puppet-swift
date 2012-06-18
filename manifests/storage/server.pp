@@ -14,6 +14,7 @@ define swift::storage::server(
   $mount_check            = 'false',
   $user                   = 'swift',
   $workers                = '1',
+  $log_level              = 'INFO',
   $replicator_concurrency = $::processorcount,
   $updater_concurrency    = $::processorcount,
   $reaper_concurrency     = $::processorcount,

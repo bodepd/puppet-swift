@@ -4,6 +4,9 @@
 bind_port = <%= port %>
 workers = <%= workers %>
 user = swift
+log_name = swift-proxy
+log_facility = LOG_LOCAL1
+log_level = <%= log_level %>
 
 [pipeline:main]
 pipeline = <%= pipeline.to_a.join(' ') %>
