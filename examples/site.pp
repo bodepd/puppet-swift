@@ -21,67 +21,22 @@
 # this site manifest serves as an example of how to
 # deploy various swift environments
 
-$admin_email          = 'dan@example_company.com'
-$keystone_db_password = 'keystone_db_password'
-$keystone_admin_token = 'keystone_token'
-$admin_password       = 'admin_password'
 
-$swift_user_password  = 'swift_pass'
-# swift specific configurations
-$swift_shared_secret  = 'changeme'
-$swift_local_net_ip   = $ipaddress_eth0
+#$swift_admin_password = 'admin_password'
+$swift_admin_password = hiera('admin_password', 'admin_password')
 
-$swift_proxy_address    = '192.168.101.17'
-$controller_node_public = '192.168.101.17' 
+ # swift specific configurations
+#$swift_shared_secret = 'changeme'
+$swift_shared_secret = hiera('swift_shared_secret', 'changeme')
 
-$verbose                = true
 
-# This node can be used to deploy a keystone service.
-# This service only contains the credentials for authenticating
-# swift
-node keystone {
-  # set up mysql server
-  class { 'mysql::server':
-    config_hash => {
-      # the priv grant fails on precise if I set a root password
-      # TODO I should make sure that this works
-      # 'root_password' => $mysql_root_password,
-      'bind_address'  => '0.0.0.0'
-    }
-  }
-  # set up all openstack databases, users, grants
-  class { 'keystone::db::mysql':
-    password => $keystone_db_password,
-  }
+#$swift_local_net_ip   = $ipaddress_eth0
+$swift_local_net_ip = hiera('swift_local_net_ip', $ipaddress_eth0)
 
-  # in stall and configure the keystone service
-  class { 'keystone':
-    admin_token  => $keystone_admin_token,
-    # we are binding keystone on all interfaces
-    # the end user may want to be more restrictive
-    bind_host    => '0.0.0.0',
-    log_verbose  => $verbose,
-    log_debug    => $verbose,
-    catalog_type => 'sql',
-  }
+#$controller_node_public = '192.168.101.17'
+$controller_node_public = hiera('openstack_controller', '192.168.101.17')
 
-  # set up keystone database
-  # set up the keystone config for mysql
-  class { 'keystone::config::mysql':
-    password => $keystone_db_password,
-  }
-  # set up keystone admin users
-  class { 'keystone::roles::admin':
-    email    => $admin_email,
-    password => $admin_password,
-  }
-  # configure the keystone service user and endpoint
-  class { 'swift::keystone::auth':
-    password => $swift_user_password,
-    address  => $swift_proxy_address,
-  }
-}
-
+$swift_zone = hiera('swift_zone', 1)
 # configurations that need to be applied to all swift nodes
 node swift_base  {
 
@@ -89,29 +44,9 @@ node swift_base  {
 
   class { 'swift':
     # not sure how I want to deal with this shared secret
-    swift_hash_suffix => 'swift_shared_secret',
+    swift_hash_suffix => $swift_shared_secret,
     package_ensure    => latest,
   }
-
-}
-
-# The following specifies 3 swift storage nodes
-node /swift_storage_1/ inherits swift_base {
-
-  $swift_zone = 1
-  include role_swift_storage
-
-}
-node /swift_storage_2/ inherits swift_base {
-
-  $swift_zone = 2
-  include role_swift_storage
-
-}
-node /swift_storage_3/ inherits swift_base {
-
-  $swift_zone = 3
-  include role_swift_storage
 
 }
 
@@ -123,7 +58,7 @@ node /swift_storage_3/ inherits swift_base {
 # they would need to be replaced with something that create and mounts xfs
 # partitions
 #
-class role_swift_storage {
+node /swift-storage/ inherits swift_base {
 
   # create xfs partitions on a loopback device and mount them
   swift::storage::loopback { ['1', '2']:
@@ -174,7 +109,8 @@ class role_swift_storage {
 }
 
 
-node /swift_proxy/ inherits swift_base {
+node /swift-proxy/ inherits swift_base {
+
 
   # curl is only required so that I can run tests
   package { 'curl': ensure => present }
@@ -227,7 +163,7 @@ node /swift_proxy/ inherits swift_base {
   class { 'swift::proxy::authtoken':
     admin_user        => 'swift',
     admin_tenant_name => 'services',
-    admin_password    => $swift_user_password,
+    admin_password    => $swift_admin_password,
     # assume that the controller host is the swift api server
     auth_host         => $controller_node_public,
   }
